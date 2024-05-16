@@ -1,0 +1,15 @@
+menu "WS2812B Configuration"
+
+    config WS2812B_PIN
+        int "LED pin"
+        default 5
+        help
+            The pin, which the led data line is connected to.
+
+    config WS2812B_NUM
+        int "LED count"
+        default 59
+        help
+            The number of leds.
+
+endmenu
