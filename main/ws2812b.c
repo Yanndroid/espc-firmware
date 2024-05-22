@@ -5,16 +5,15 @@
 #include "portable.h"
 #include "portmacro.h"
 #include "rom/ets_sys.h"
-#include "sdkconfig.h"
 #include <string.h>
 
-#define WS2812B_PIN CONFIG_WS2812B_PIN
-#define WS2812B_NUM CONFIG_WS2812B_NUM
+#define WS2812B_PIN 5
+#define WS2812B_NUM 59
 
 static color_t ws2812b_pixels[WS2812B_NUM];
-static float ws2812b_brightness = 1.0;
+static uint8_t ws2812b_brightness = 255;
 
-void ws2812b_color_hsv(color_t *color, uint16_t hue, uint8_t sat, uint8_t val) {
+void ws2812b_color_hsv(color_t *color, uint16_t hue, uint8_t sat) {
   uint8_t r, g, b;
   hue = (hue * 1530L + 32768) / 65536;
 
@@ -50,12 +49,11 @@ void ws2812b_color_hsv(color_t *color, uint16_t hue, uint8_t sat, uint8_t val) {
     g = b = 0;
   }
 
-  uint32_t v1 = 1 + val;
   uint16_t s1 = 1 + sat;
   uint8_t s2 = 255 - sat;
-  color->r = ((((r * s1) >> 8) + s2) * v1) >> 8;
-  color->g = ((((g * s1) >> 8) + s2) * v1) >> 8;
-  color->b = ((((b * s1) >> 8) + s2) * v1) >> 8;
+  color->r = (((r * s1) >> 8) + s2);
+  color->g = (((g * s1) >> 8) + s2);
+  color->b = (((b * s1) >> 8) + s2);
 }
 
 void ws2812b_init(void) {
@@ -69,15 +67,9 @@ void ws2812b_init(void) {
   ws2812b_clear();
 }
 
-void ws2812b_clear(void) {
-  memset(&ws2812b_pixels, 0, sizeof(ws2812b_pixels));
-}
+void ws2812b_clear(void) { memset(&ws2812b_pixels, 0, sizeof(ws2812b_pixels)); }
 
-void ws2812b_set_brightness(float brightness) {
-  if (brightness >= 0.0 && brightness <= 1.0) {
-    ws2812b_brightness = brightness;
-  }
-}
+void ws2812b_set_brightness(uint8_t brightness) { ws2812b_brightness = brightness; }
 
 void ws2812b_set_pixel(uint8_t index, color_t color) {
   if (index < WS2812B_NUM)
@@ -85,21 +77,18 @@ void ws2812b_set_pixel(uint8_t index, color_t color) {
 }
 
 void IRAM_ATTR ws2812b_show(void) {
-  /* for (int i = 0; i < sizeof(ws2812b_pixels); i++) { // can't use pixels again
-    *((uint8_t *)ws2812b_pixels + i) *= ws2812b_brightness;
-  } */
   uint8_t bytes[sizeof(ws2812b_pixels)];
   for (int i = 0; i < sizeof(ws2812b_pixels); i++) {
-    bytes[i] = *((uint8_t *)ws2812b_pixels + i) * ws2812b_brightness;
+    bytes[i] = (*((uint8_t *)ws2812b_pixels + i) * ws2812b_brightness) >> 8;
   }
 
   vPortEnterCritical();
-  vPortEndScheduler(); //check if only needed once
+  vPortEndScheduler(); // TODO: check if only needed once
   vPortETSIntrLock();
 
   /* for (int i = 0; i < sizeof(ws2812b_pixels); i++) {
     uint8_t mask = 0x80;
-    uint8_t byte = *((uint8_t *)ws2812b_pixels + i) * ws2812b_brightness; */
+    uint8_t byte = (*((uint8_t *)ws2812b_pixels + i) * ws2812b_brightness) >> 8; */
 
   for (int i = 0; i < sizeof(bytes); i++) {
     uint8_t mask = 0x80;
@@ -157,5 +146,5 @@ void IRAM_ATTR ws2812b_show(void) {
   vPortETSIntrUnlock();
   vPortExitCritical();
 
-  vTaskDelay(10 / portTICK_PERIOD_MS); // remove maybe
+  vTaskDelay(10 / portTICK_PERIOD_MS); // TDOD: remove maybe
 }

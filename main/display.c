@@ -7,8 +7,7 @@
 #include <stdlib.h>
 
 // 0,1,2,3,4,5,6,7,8,9,A,b,C,d,E,F, ,°,-,_,P
-static const uint8_t display_digit_masks[] = {0x77, 0x11, 0x6b, 0x3b, 0x1d, 0x3e, 0x7e, 0x13, 0x7f, 0x3f, 0x5f,
-                                              0x7c, 0x66, 0x79, 0x6e, 0x4e, 0x00, 0x0f, 0x02, 0x08, 0x4f};
+static const uint8_t display_digit_masks[] = {0x77, 0x11, 0x6b, 0x3b, 0x1d, 0x3e, 0x7e, 0x13, 0x7f, 0x3f, 0x5f, 0x7c, 0x66, 0x79, 0x6e, 0x4e, 0x00, 0x0f, 0x02, 0x08, 0x4f};
 
 const static color_t color_off = {0, 0, 0};
 
@@ -33,17 +32,26 @@ void display_init(void) {
 }
 
 void display_set_brightness(uint8_t brightness, bool update) {
-  ws2812b_set_brightness(brightness / 255.0);
+  ws2812b_set_brightness(brightness);
   if (update)
     ws2812b_show();
 }
 
 void display_show_boot(void) {
-  display_segment_digit(SEGMENT_1, 8, (color_t){255, 255, 255});
-  display_segment_digit(SEGMENT_2, 8, (color_t){0, 0, 255});
-  display_segment_digit(SEGMENT_3, 8, (color_t){0, 255, 0});
-  display_segment_digit(SEGMENT_4, 8, (color_t){255, 0, 0});
-  display_dots(true, true, (color_t){255, 255, 255});
+  display_segment_digit(SEGMENT_1, 8, (color_t){.r = 255, .g = 255, .b = 255});
+  display_segment_digit(SEGMENT_2, 8, (color_t){.b = 255});
+  display_segment_digit(SEGMENT_3, 8, (color_t){.g = 255});
+  display_segment_digit(SEGMENT_4, 8, (color_t){.r = 255});
+  display_dots(true, true, (color_t){.r = 255, .g = 255, .b = 255});
+  ws2812b_show();
+}
+
+void display_show_app(void) {
+  display_segment_digit(SEGMENT_1, 16, color_off);
+  display_segment_digit(SEGMENT_2, 20, (color_t){.b = 255});
+  display_segment_digit(SEGMENT_3, 20, (color_t){.g = 255});
+  display_segment_digit(SEGMENT_4, 10, (color_t){.r = 255});
+  display_dots(false, false, color_off);
   ws2812b_show();
 }
 
@@ -158,18 +166,3 @@ static void display_loading(uint8_t frame, color_t color_one, color_t color_two)
   ws2812b_set_pixel(anim[(frame + 1 + size / 2) % size], color_two);
   ws2812b_show();
 }
-
-/* static void display_loading(uint8_t frame, color_t color_one, color_t color_two) {
-  uint8_t anim[] = {0, 8, 10, 24, 41, 55, 57, 49, 47, 33, 16, 2};
-  uint8_t size = sizeof(anim);
-  if (frame >= size)
-    return;
-
-  ws2812b_clear();
-  ws2812b_set_pixel(anim[frame], color_one);
-  ws2812b_set_pixel(anim[frame] + 1, color_one);
-
-  ws2812b_set_pixel(anim[(frame + size / 2) % size], color_two);
-  ws2812b_set_pixel(anim[(frame + size / 2) % size] + 1, color_two);
-  ws2812b_show();
-} */

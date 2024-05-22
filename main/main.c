@@ -1,13 +1,16 @@
 #include "display.h"
-#include "esp_log.h"
-#include "esp_sntp.h"
 #include "location.h"
+#include "settings.h"
 #include "weather.h"
 #include "wifi.h"
 #include "ws2812b.h"
+
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "lwip/apps/sntp.h"
+#include <string.h>
 #include <sys/_stdint.h>
 #include <sys/time.h>
-#include <time.h>
 
 void sync_rtc_with_ntp() {
   sntp_setservername(0, "pool.ntp.org");
@@ -15,57 +18,65 @@ void sync_rtc_with_ntp() {
 
   time_t now = 0;
   struct tm timeinfo = {0};
-  int retry = 0;
-  const int retry_count = 150;
 
-
-  while (timeinfo.tm_year < (2016 - 1900) && ++retry < retry_count) {
-    /* ESP_LOGI("ntp", "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    time(&now);
-    localtime_r(&now, &timeinfo); */
-
+  while (timeinfo.tm_year <= 70) {
     display_show_loading_next();
 
     time(&now);
     localtime_r(&now, &timeinfo);
   }
-
-  /* if (retry < retry_count) {
-    ESP_LOGI("ntp", "System time synchronized.");
-    struct timeval tv = {.tv_sec = now};
-    settimeofday(&tv, NULL);
-  } else {
-    ESP_LOGE("ntp", "Failed to synchronize system time with NTP server.");
-  } */
 }
 
-uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
+uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max) { return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min; }
 
 uint8_t calc_brightness(bool night, time_t *now, weather_t *weather) {
-  uint8_t br_min = 2;
-  uint8_t br_max = 60;
-  uint16_t margin = 7200;
-
-  if (weather->sunrise - margin <= *now && *now <= weather->sunrise + margin) { // sunrise
-    return map(*now - weather->sunrise + margin, 0, margin * 2, br_min, br_max);
-  } else if (weather->sunset - margin <= *now && *now <= weather->sunset + margin) { // sunset
-    return map(*now - weather->sunset + margin, 0, margin * 2, br_max, br_min);
+  if (weather->sunrise - settings.brightness.margin <= *now && *now <= weather->sunrise + settings.brightness.margin) { // sunrise
+    return map(*now - weather->sunrise + settings.brightness.margin, 0, settings.brightness.margin * 2, settings.brightness.min, settings.brightness.max);
+  } else if (weather->sunset - settings.brightness.margin <= *now && *now <= weather->sunset + settings.brightness.margin) { // sunset
+    return map(*now - weather->sunset + settings.brightness.margin, 0, settings.brightness.margin * 2, settings.brightness.max, settings.brightness.min);
   }
 
   if (night) { // night
-    return br_min;
+    return settings.brightness.min;
   } else { // day
-    return br_max;
+    return settings.brightness.max;
   }
 }
 
-void app_main() {
-  display_init();
+void start_wifi(char ssid[32], char username[32], char password[64]) {
+  if (wifi_station(ssid, username, password)) {
+    strcpy(settings.wifi.ssid, ssid);
+    strcpy(settings.wifi.username, username);
+    strcpy(settings.wifi.password, password);
+    // TODO: save wifi struct to nvs
+    return;
+  }
 
-  initialise_wifi();
+  settings.wifi.ssid[0] = '\0';
+  settings.wifi.username[0] = '\0';
+  settings.wifi.password[0] = '\0';
+
+  wifi_ap(settings.device_name, "yanndroid");
+
+  display_show_app(); // TODO: display "APP"
+}
+
+void app_main() {
+  // TODO: load nvs
+
+  display_init();
+  display_set_brightness(settings.brightness.max, false);
+  // display_show_boot();
+
+  esp_netif_init();
+  esp_event_loop_create_default();
+
+  wifi_init();
+  start_wifi(settings.wifi.ssid, settings.wifi.username, settings.wifi.password);
+  while (strlen(settings.wifi.ssid) == 0) {
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+  // TDOD: show ip address
 
   sync_rtc_with_ntp();
   setenv("TZ", "UTC-2", 1);
@@ -76,7 +87,7 @@ void app_main() {
 
   weather_t *weather = weather_get();
 
-  uint16_t hue = 5400;
+  uint16_t hue = settings.color.hue;
   color_t color;
 
   time_t now;
@@ -93,16 +104,16 @@ void app_main() {
     if (night) {
       color = (color_t){.r = 255};
     } else {
-      ws2812b_color_hsv(&color, hue += 2, 255, 255);
+      ws2812b_color_hsv(&color, hue += 2, settings.color.sat);
     }
 
     if (timeinfo.tm_sec % 30 < 2) {
       color_t sec_color;
 
       if (night) {
-        sec_color = (color_t){.r = 255};
+        sec_color = color;
       } else {
-        ws2812b_color_hsv(&sec_color, hue + (1 << 15), 240, 255);
+        ws2812b_color_hsv(&sec_color, hue + (1 << 15), settings.color.sat);
       }
 
       display_show_date(&timeinfo, color, sec_color);
@@ -122,8 +133,7 @@ void app_main() {
       weather_request(location_get());
     }
 
-    // ESP_LOGI("loop log", "free heap: %d, color hue: %d",
-    // esp_get_free_heap_size(), hue);
+    //ESP_LOGI("main", "free heap: %d", esp_get_free_heap_size());
 
     // vTaskDelay(200 / portTICK_PERIOD_MS);
   }
