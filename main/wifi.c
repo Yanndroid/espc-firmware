@@ -34,7 +34,12 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
 }
 
 void wifi_init(void) {
-  // TODO: set custom mac address: https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/api-reference/system/system.html
+  uint8_t mac[6];
+  esp_efuse_mac_get_default(mac);
+  mac[0] = 0x44;
+  mac[1] = 0x44;
+  esp_base_mac_addr_set(mac);
+
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   esp_wifi_init(&cfg);
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
