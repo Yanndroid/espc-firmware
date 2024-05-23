@@ -1,8 +1,8 @@
 #include "cJSON.h"
 #include "coap.h"
 #include "display.h"
+#include "esp_err.h"
 #include "esp_event.h"
-#include "esp_log.h"
 #include "esp_netif.h"
 #include "location.h"
 #include "lwip/apps/sntp.h"
@@ -123,8 +123,12 @@ void app_main() {
   vTaskDelay(2000 / portTICK_PERIOD_MS);
 
   // location and weather
-  location_request();
-  weather_request(location_get());
+  while (location_request() == ESP_FAIL) {
+    display_show_loading_next();
+  }
+  while (weather_request(location_get()) == ESP_FAIL) {
+    display_show_loading_next();
+  }
 
   weather_t *weather = weather_get();
 
@@ -184,7 +188,10 @@ void app_main() {
     }
 
     if (now > weather->next_update) {
-      weather_request(location_get());
+      esp_err_t err = weather_request(location_get());
+      if (err == ESP_FAIL) {
+        weather->next_update += 300;
+      }
     }
 
     // ESP_LOGI("main", "free heap: %d", esp_get_free_heap_size());
