@@ -37,15 +37,6 @@ void display_set_brightness(uint8_t brightness, bool update) {
     ws2812b_show();
 }
 
-void display_show_boot(void) {
-  display_segment_digit(SEGMENT_1, 8, (color_t){.r = 255, .g = 255, .b = 255});
-  display_segment_digit(SEGMENT_2, 8, (color_t){.b = 255});
-  display_segment_digit(SEGMENT_3, 8, (color_t){.g = 255});
-  display_segment_digit(SEGMENT_4, 8, (color_t){.r = 255});
-  display_dots(true, true, (color_t){.r = 255, .g = 255, .b = 255});
-  ws2812b_show();
-}
-
 void display_show_app(void) {
   display_segment_digit(SEGMENT_1, 16, color_off);
   display_segment_digit(SEGMENT_2, 20, (color_t){.b = 255});
@@ -55,12 +46,12 @@ void display_show_app(void) {
   ws2812b_show();
 }
 
-void display_show_test(uint8_t a, uint8_t b, uint8_t c, uint8_t d, color_t color) {
-  display_segment_digit(SEGMENT_1, d, color);
-  display_segment_digit(SEGMENT_2, c, color);
-  display_segment_digit(SEGMENT_3, b, color);
-  display_segment_digit(SEGMENT_4, a, color);
-  display_dots(true, true, color);
+void display_show_ip(uint8_t third, uint8_t fourth) {
+  display_segment_digit(SEGMENT_1, fourth & 0xF, (color_t){.g = 255});
+  display_segment_digit(SEGMENT_2, fourth >> 4, (color_t){.g = 255});
+  display_segment_digit(SEGMENT_3, third & 0xF, (color_t){.r = 255});
+  display_segment_digit(SEGMENT_4, third >> 4, (color_t){.r = 255});
+  display_dots(false, true, (color_t){.r = 255, .g = 255, .b = 255});
   ws2812b_show();
 }
 
@@ -116,7 +107,9 @@ static void display_show_temperature(weather_t *weather, color_t color) {
   ws2812b_show();
 }
 
-static int display_blank_0(uint8_t digit) { return (digit != 0) ? digit : 16; }
+static int display_blank_0(uint8_t digit) {
+  return (digit != 0) ? digit : 16;
+}
 
 static void display_segment_digit(segment_t segment, uint8_t digit, color_t color) {
   if (digit < sizeof(display_digit_masks)) {

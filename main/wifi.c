@@ -15,7 +15,9 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
   if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
     esp_wifi_connect();
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-    xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    if (wifi_event_group) {
+      xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
 
     system_event_sta_disconnected_t *event = (system_event_sta_disconnected_t *)event_data;
 
@@ -29,7 +31,9 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
 
     esp_wifi_connect();
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-    xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    if (wifi_event_group) {
+      xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
   }
 }
 
@@ -43,9 +47,15 @@ void wifi_init(void) {
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   esp_wifi_init(&cfg);
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
+
+  // TODO: set hostname
+
+  esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL);
+  esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL);
 }
 
 void wifi_ap(char ssid[32], char password[64]) {
+  esp_wifi_stop();
   wifi_config_t wifi_config = {
       .ap = {.ssid_len = strlen(ssid), .max_connection = 1, .authmode = (strlen(password) == 0) ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA_WPA2_PSK},
   };
@@ -61,10 +71,9 @@ bool wifi_station(char ssid[32], char username[32], char password[64]) {
   if (strlen(ssid) == 0) {
     return false;
   }
+  esp_wifi_stop();
 
   wifi_event_group = xEventGroupCreate();
-  esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL);
-  esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL);
 
   wifi_config_t wifi_config = {.sta = {}};
   strcpy((char *)wifi_config.sta.ssid, ssid);
@@ -87,13 +96,15 @@ bool wifi_station(char ssid[32], char username[32], char password[64]) {
     display_show_loading_next();
 
     if ((xTaskGetTickCount() - start_time) >= pdMS_TO_TICKS(10000)) {
-      vEventGroupDelete(wifi_event_group);
       esp_wifi_disconnect();
       esp_wifi_stop();
+      vEventGroupDelete(wifi_event_group);
+      wifi_event_group = NULL;
       return false;
     }
   }
 
   vEventGroupDelete(wifi_event_group);
+  wifi_event_group = NULL;
   return true;
 }

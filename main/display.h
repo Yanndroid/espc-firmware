@@ -9,11 +9,9 @@ void display_init(void);
 
 void display_set_brightness(uint8_t brightness, bool update);
 
-void display_show_boot(void);
-
 void display_show_app(void);
 
-void display_show_test(uint8_t a, uint8_t b, uint8_t c, uint8_t d, color_t color);
+void display_show_ip(uint8_t third, uint8_t fourth);
 
 void display_show_time(struct tm *timeinfo, color_t color);
 
