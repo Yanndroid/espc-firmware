@@ -14,6 +14,139 @@
 #include <sys/_stdint.h>
 #include <sys/time.h>
 
+static uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max);
+static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather);
+static void main_online_mode(void);
+
+void app_main() {
+  // settings
+  settings_init();
+
+  // display
+  display_init();
+  display_set_brightness(settings.brightness.max, false);
+
+  // network
+  esp_netif_init();
+  esp_event_loop_create_default();
+
+  // coap
+  coap_init();
+
+  // wifi
+  wifi_init();
+  while (1) {
+    if (wifi_station(settings.wifi.ssid, settings.wifi.username, settings.wifi.password)) {
+      settings_save_wifi();
+      break;
+    }
+
+    settings.wifi.ssid[0] = '\0';
+    settings.wifi.username[0] = '\0';
+    settings.wifi.password[0] = '\0';
+
+    wifi_ap(settings.device_name, "yanndroid"); // from config
+    display_show_app();
+
+    while (strlen(settings.wifi.ssid) == 0) {
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+  }
+
+  main_online_mode();
+}
+
+static void main_online_mode(void) {
+  // sync time
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  sntp_setservername(0, "pool.ntp.org");
+  sntp_init();
+
+  // show ip address
+  tcpip_adapter_ip_info_t ip_info;
+  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+  display_show_ip((ip_info.ip.addr >> 16) & 0xFF, (ip_info.ip.addr >> 24) & 0xFF);
+
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+
+  // get location and weather
+  while (location_request() == ESP_FAIL) {
+    display_show_loading_next();
+  }
+  while (weather_request(location_get()) == ESP_FAIL) {
+    display_show_loading_next();
+  }
+
+  weather_t *weather = weather_get();
+
+  // wait for time sync
+  time_t now = 0;
+  struct tm timeinfo = {.tm_year = 0};
+
+  while (timeinfo.tm_year <= 70) {
+    display_show_loading_next();
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+  }
+
+  // set timezone
+  setenv("TZ", "UTC-2", 1);
+  tzset();
+
+  // main loop
+  uint16_t hue = settings.color.hue;
+  color_t color;
+
+  while (1) {
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    // brightness
+    bool night = weather->sunset < now || now < weather->sunrise;
+    display_set_brightness(calc_brightness(night, &now, weather), false);
+
+    // color
+    if (night) {
+      color = (color_t){.r = 255};
+    } else {
+      ws2812b_color_hsv(&color, hue += 2, settings.color.sat);
+    }
+
+    // display
+    if (timeinfo.tm_sec % 30 < 2) {
+      // show date
+      color_t sec_color;
+      if (night) {
+        sec_color = color;
+      } else {
+        ws2812b_color_hsv(&sec_color, hue + (1 << 15), settings.color.sat);
+      }
+      display_show_date(&timeinfo, color, sec_color);
+    } else if (timeinfo.tm_sec % 30 < 4) {
+      // show weather
+      if (night) {
+        display_show_temperature_degree(weather, color);
+      } else {
+        display_show_temperature_weather(weather, color);
+      }
+    } else {
+      // show time
+      display_show_time(&timeinfo, color);
+    }
+
+    // update weather
+    if (now > weather->next_update) {
+      if (weather_request(location_get()) == ESP_FAIL) {
+        weather->next_update += 300;
+      }
+    }
+
+    // ESP_LOGI("main", "free heap: %d", esp_get_free_heap_size());
+    // vTaskDelay(200 / portTICK_PERIOD_MS);
+  }
+}
+
 static uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -85,137 +218,13 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings.brightness.max = cJSON_GetObjectItem(brightness, "max")->valueint;
     settings.brightness.min = cJSON_GetObjectItem(brightness, "min")->valueint;
     settings.brightness.margin = cJSON_GetObjectItem(brightness, "margin")->valueint;
-    storage_save_brightness();
+    settings_save_brightness();
   }
 
   cJSON *color = cJSON_GetObjectItem(request, "color");
   if (color != NULL) {
     settings.color.hue = cJSON_GetObjectItem(color, "hue")->valueint;
     settings.color.sat = cJSON_GetObjectItem(color, "sat")->valueint;
-    storage_save_color();
-  }
-}
-
-void app_main() {
-  // settings
-  storage_init();
-
-  // display
-  display_init();
-  display_set_brightness(settings.brightness.max, false);
-
-  // network
-  esp_netif_init();
-  esp_event_loop_create_default();
-
-  // coap
-  coap_init();
-
-  // wifi
-  wifi_init();
-  while (1) {
-    if (wifi_station(settings.wifi.ssid, settings.wifi.username, settings.wifi.password)) {
-      storage_save_wifi();
-      break;
-    }
-
-    settings.wifi.ssid[0] = '\0';
-    settings.wifi.username[0] = '\0';
-    settings.wifi.password[0] = '\0';
-
-    wifi_ap(settings.device_name, "yanndroid");
-    display_show_app();
-
-    while (strlen(settings.wifi.ssid) == 0) {
-      vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
-  }
-
-  // sync time
-  sntp_setoperatingmode(SNTP_OPMODE_POLL);
-  sntp_setservername(0, "pool.ntp.org");
-  sntp_init();
-
-  // show ip address
-  tcpip_adapter_ip_info_t ip_info;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-  display_show_ip((ip_info.ip.addr >> 16) & 0xFF, (ip_info.ip.addr >> 24) & 0xFF);
-
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
-
-  // location and weather
-  while (location_request() == ESP_FAIL) {
-    display_show_loading_next();
-  }
-  while (weather_request(location_get()) == ESP_FAIL) {
-    display_show_loading_next();
-  }
-
-  weather_t *weather = weather_get();
-
-  // wait for time sync
-  time_t now = 0;
-  struct tm timeinfo = {.tm_year = 0};
-
-  while (timeinfo.tm_year <= 70) {
-    display_show_loading_next();
-
-    time(&now);
-    localtime_r(&now, &timeinfo);
-  }
-
-  // set timezone
-  setenv("TZ", "UTC-2", 1);
-  tzset();
-
-  // main loop
-  uint16_t hue = settings.color.hue;
-  color_t color;
-
-  while (1) {
-    time(&now);
-    localtime_r(&now, &timeinfo);
-
-    bool night = weather->sunset < now || now < weather->sunrise;
-
-    display_set_brightness(calc_brightness(night, &now, weather), false);
-
-    if (night) {
-      color = (color_t){.r = 255};
-    } else {
-      ws2812b_color_hsv(&color, hue += 2, settings.color.sat);
-    }
-
-    if (timeinfo.tm_sec % 30 < 2) {
-      color_t sec_color;
-
-      if (night) {
-        sec_color = color;
-      } else {
-        ws2812b_color_hsv(&sec_color, hue + (1 << 15), settings.color.sat);
-      }
-
-      display_show_date(&timeinfo, color, sec_color);
-    } else if (timeinfo.tm_sec % 30 < 4) {
-
-      if (night) {
-        display_show_temperature_degree(weather, color);
-      } else {
-        display_show_temperature_weather(weather, color);
-      }
-
-    } else {
-      display_show_time(&timeinfo, color);
-    }
-
-    if (now > weather->next_update) {
-      if (weather_request(location_get()) == ESP_FAIL) {
-        weather->next_update += 300;
-      }
-    }
-
-    // ESP_LOGI("main", "free heap: %d", esp_get_free_heap_size());
-
-    // vTaskDelay(200 / portTICK_PERIOD_MS);
+    settings_save_color();
   }
 }

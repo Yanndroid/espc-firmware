@@ -29,12 +29,12 @@ typedef struct {
 
 settings_t settings;
 
-void storage_init(void);
+void settings_init(void);
 
-void storage_wipe(void);
+void settings_wipe(void);
 
-void storage_save_wifi(void);
+void settings_save_wifi(void);
 
-void storage_save_brightness(void);
+void settings_save_brightness(void);
 
-void storage_save_color(void);
+void settings_save_color(void);
