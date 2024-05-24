@@ -85,19 +85,20 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings.brightness.max = cJSON_GetObjectItem(brightness, "max")->valueint;
     settings.brightness.min = cJSON_GetObjectItem(brightness, "min")->valueint;
     settings.brightness.margin = cJSON_GetObjectItem(brightness, "margin")->valueint;
-    // TODO: update display
+    storage_save_brightness();
   }
 
   cJSON *color = cJSON_GetObjectItem(request, "color");
   if (color != NULL) {
     settings.color.hue = cJSON_GetObjectItem(color, "hue")->valueint;
     settings.color.sat = cJSON_GetObjectItem(color, "sat")->valueint;
+    storage_save_color();
   }
 }
 
 void app_main() {
   // settings
-  // TODO: load nvs
+  storage_init();
 
   // display
   display_init();
@@ -114,7 +115,7 @@ void app_main() {
   wifi_init();
   while (1) {
     if (wifi_station(settings.wifi.ssid, settings.wifi.username, settings.wifi.password)) {
-      // TODO: save wifi struct to nvs
+      storage_save_wifi();
       break;
     }
 

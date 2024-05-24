@@ -28,3 +28,13 @@ typedef struct {
 } settings_t;
 
 settings_t settings;
+
+void storage_init(void);
+
+void storage_wipe(void);
+
+void storage_save_wifi(void);
+
+void storage_save_brightness(void);
+
+void storage_save_color(void);
