@@ -33,20 +33,37 @@ static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather) {
 }
 
 void coap_get_handler(cJSON *request, cJSON *response) {
-  cJSON *brightness = cJSON_CreateObject();
-  cJSON_AddItemToObject(response, "brightness", brightness);
-  cJSON_AddNumberToObject(brightness, "max", settings.brightness.max);
-  cJSON_AddNumberToObject(brightness, "min", settings.brightness.min);
-  cJSON_AddNumberToObject(brightness, "margin", settings.brightness.margin);
+  for (int i = 0; i < cJSON_GetArraySize(request); i++) {
+    cJSON *item = cJSON_GetArrayItem(request, i);
+    if (!item) {
+      continue;
+    }
 
-  cJSON *color = cJSON_CreateObject();
-  cJSON_AddItemToObject(response, "color", color);
-  cJSON_AddNumberToObject(color, "hue", settings.color.hue);
-  cJSON_AddNumberToObject(color, "sat", settings.color.sat);
-
-  cJSON *wifi = cJSON_CreateObject();
-  cJSON_AddItemToObject(response, "wifi", wifi);
-  cJSON_AddStringToObject(wifi, "ssid", settings.wifi.ssid);
+    if (strcmp(item->valuestring, "device") == 0) {
+      cJSON *device = cJSON_CreateObject();
+      cJSON_AddItemToObject(response, "device", device);
+      cJSON_AddStringToObject(device, "name", settings.device_name);
+      /* uint8_t mac[6];
+      esp_read_mac(mac, ESP_MAC_WIFI_STA);
+      cJSON_AddStringToObject(device, "mac", (char *)mac); */
+      cJSON_AddNumberToObject(device, "heap", esp_get_free_heap_size());
+    } else if (strcmp(item->valuestring, "wifi") == 0) {
+      cJSON *wifi = cJSON_CreateObject();
+      cJSON_AddItemToObject(response, "wifi", wifi);
+      cJSON_AddStringToObject(wifi, "ssid", settings.wifi.ssid);
+    } else if (strcmp(item->valuestring, "brightness") == 0) {
+      cJSON *brightness = cJSON_CreateObject();
+      cJSON_AddItemToObject(response, "brightness", brightness);
+      cJSON_AddNumberToObject(brightness, "max", settings.brightness.max);
+      cJSON_AddNumberToObject(brightness, "min", settings.brightness.min);
+      cJSON_AddNumberToObject(brightness, "margin", settings.brightness.margin);
+    } else if (strcmp(item->valuestring, "color") == 0) {
+      cJSON *color = cJSON_CreateObject();
+      cJSON_AddItemToObject(response, "color", color);
+      cJSON_AddNumberToObject(color, "hue", settings.color.hue);
+      cJSON_AddNumberToObject(color, "sat", settings.color.sat);
+    }
+  }
 }
 
 void coap_put_handler(cJSON *request, cJSON *response) {
@@ -188,8 +205,7 @@ void app_main() {
     }
 
     if (now > weather->next_update) {
-      esp_err_t err = weather_request(location_get());
-      if (err == ESP_FAIL) {
+      if (weather_request(location_get()) == ESP_FAIL) {
         weather->next_update += 300;
       }
     }

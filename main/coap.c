@@ -31,6 +31,7 @@ static void coap_handle_get(coap_context_t *ctx, coap_resource_t *resource, coap
 
   cJSON_Delete(response_json);
   cJSON_Delete(request_json);
+  free(response_data);
 }
 
 static void coap_handle_put(coap_context_t *ctx, coap_resource_t *resource, coap_session_t *session, coap_pdu_t *request, coap_binary_t *token, coap_string_t *query, coap_pdu_t *response) {
@@ -63,6 +64,8 @@ static void coap_thread(void *pvParameters) {
     vTaskDelete(NULL);
     return;
   }
+  context->max_idle_sessions = 2;
+  context->session_timeout = 2;
 
   coap_resource_t *resource = coap_resource_init(NULL, 0);
   if (!resource)
@@ -72,7 +75,7 @@ static void coap_thread(void *pvParameters) {
   coap_add_resource(context, resource);
 
   while (1) {
-    coap_run_once(context, 0);
+    coap_run_once(context, 500);
   }
 
 coap_thread_exit:
