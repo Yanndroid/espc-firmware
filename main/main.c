@@ -43,10 +43,14 @@ void coap_get_handler(cJSON *request, cJSON *response) {
       cJSON *device = cJSON_CreateObject();
       cJSON_AddItemToObject(response, "device", device);
       cJSON_AddStringToObject(device, "name", settings.device_name);
-      /* uint8_t mac[6];
-      esp_read_mac(mac, ESP_MAC_WIFI_STA);
-      cJSON_AddStringToObject(device, "mac", (char *)mac); */
       cJSON_AddNumberToObject(device, "heap", esp_get_free_heap_size());
+
+      uint8_t mac[6];
+      esp_read_mac(mac, ESP_MAC_WIFI_STA);
+      char mac_str[18];
+      snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+      cJSON_AddStringToObject(device, "mac", mac_str);
+
     } else if (strcmp(item->valuestring, "wifi") == 0) {
       cJSON *wifi = cJSON_CreateObject();
       cJSON_AddItemToObject(response, "wifi", wifi);
@@ -132,7 +136,6 @@ void app_main() {
   sntp_init();
 
   // show ip address
-  // TODO: display ip address
   tcpip_adapter_ip_info_t ip_info;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
   display_show_ip((ip_info.ip.addr >> 16) & 0xFF, (ip_info.ip.addr >> 24) & 0xFF);

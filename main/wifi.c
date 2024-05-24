@@ -1,9 +1,8 @@
 #include "wifi.h"
 #include "display.h"
+#include "settings.h"
 
-#include "esp_event.h"
 #include "esp_wifi.h"
-#include "esp_wifi_types.h"
 #include "esp_wpa2.h"
 #include "freertos/event_groups.h"
 #include <string.h>
@@ -20,7 +19,6 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
     }
 
     system_event_sta_disconnected_t *event = (system_event_sta_disconnected_t *)event_data;
-
     switch (event->reason) {
     case WIFI_REASON_NOT_AUTHED:
       return;
@@ -48,8 +46,6 @@ void wifi_init(void) {
   esp_wifi_init(&cfg);
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
 
-  // TODO: set hostname
-
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL);
   esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL);
 }
@@ -65,6 +61,7 @@ void wifi_ap(char ssid[32], char password[64]) {
   esp_wifi_set_mode(WIFI_MODE_AP);
   esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
   esp_wifi_start();
+  tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_AP, settings.device_name);
 }
 
 bool wifi_station(char ssid[32], char username[32], char password[64]) {
@@ -90,6 +87,7 @@ bool wifi_station(char ssid[32], char username[32], char password[64]) {
   }
 
   esp_wifi_start();
+  tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, settings.device_name);
 
   TickType_t start_time = xTaskGetTickCount();
   while (!(xEventGroupGetBits(wifi_event_group) & WIFI_CONNECTED_BIT)) {

@@ -11,8 +11,6 @@ typedef struct weather_t {
   time_t next_update;
 } weather_t;
 
-// void weather_init(location_t *location);
-
 esp_err_t weather_request(location_t *location);
 
 weather_t *weather_get();
