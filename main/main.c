@@ -216,6 +216,16 @@ static void interrupt_task_update(void *args) {
   }
 }
 
+static void interrupt_task_restart(void *args) {
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  esp_restart();
+}
+
+static void interrupt_task_wipe_nvs(void *args) {
+  settings_wipe();
+  interrupt_task_restart(args);
+}
+
 static esp_err_t update_event_handler(esp_http_client_event_t *evt) {
   static int content_length = 0;
   static int content_received = 0;
@@ -306,15 +316,27 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings_save_color();
   }
 
+  /* cJSON *update_bak = cJSON_GetObjectItem(request, "update_bak");
+  if (update_bak != NULL) {
+    interrupt_task_update(update_bak->valuestring);
+  } */
+
   cJSON *update = cJSON_GetObjectItem(request, "update");
   if (update != NULL && !interrupt_task.method) {
     interrupt_task.method = interrupt_task_update;
     interrupt_task.args = strdup(update->valuestring);
   }
 
-  cJSON *update_bak = cJSON_GetObjectItem(request, "update_bak");
-  if (update_bak != NULL) {
-    interrupt_task_update(update_bak->valuestring);
+  cJSON *reset = cJSON_GetObjectItem(request, "reset");
+  if (reset != NULL && !interrupt_task.method) {
+    interrupt_task.method = interrupt_task_wipe_nvs;
+    interrupt_task.args = NULL;
+  }
+
+  cJSON *restart = cJSON_GetObjectItem(request, "restart");
+  if (restart != NULL && !interrupt_task.method) {
+    interrupt_task.method = interrupt_task_restart;
+    interrupt_task.args = NULL;
   }
 
   cJSON *locate = cJSON_GetObjectItem(request, "locate");
