@@ -3,6 +3,8 @@
 #include "display.h"
 #include "esp_err.h"
 #include "esp_event.h"
+#include "esp_http_client.h"
+#include "esp_https_ota.h"
 #include "esp_netif.h"
 #include "location.h"
 #include "lwip/apps/sntp.h"
@@ -14,9 +16,21 @@
 #include <sys/_stdint.h>
 #include <sys/time.h>
 
-static uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max);
-static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather);
 static void main_online_mode(void);
+static int map(int x, int in_min, int in_max, int out_min, int out_max);
+static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather);
+static void interrupt_task_locate(void *args);
+static void interrupt_task_update(void *args);
+static esp_err_t update_event_handler(esp_http_client_event_t *evt);
+
+typedef void (*interrupt_method)(void *args);
+
+typedef struct {
+  interrupt_method method;
+  void *args;
+} interrupt_task_t;
+
+interrupt_task_t interrupt_task = {NULL, NULL};
 
 void app_main() {
   // settings
@@ -99,6 +113,14 @@ static void main_online_mode(void) {
   color_t color;
 
   while (1) {
+    // process interrupt task
+    if (interrupt_task.method) {
+      interrupt_task.method(interrupt_task.args);
+      free(interrupt_task.args);
+      interrupt_task.method = NULL;
+    }
+
+    // get time
     time(&now);
     localtime_r(&now, &timeinfo);
 
@@ -147,7 +169,7 @@ static void main_online_mode(void) {
   }
 }
 
-static uint8_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint8_t out_min, uint8_t out_max) {
+static int map(int x, int in_min, int in_max, int out_min, int out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
@@ -163,6 +185,62 @@ static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather) {
   } else { // day
     return settings.brightness.max;
   }
+}
+
+static void interrupt_task_locate(void *args) {
+  display_set_brightness(settings.brightness.max, false);
+  for (int i = 0; i < 24; i++) {
+    display_show_loading_next();
+  }
+}
+
+static void interrupt_task_update(void *args) {
+  display_set_brightness(settings.brightness.max, false);
+  display_circle_progress(23, (color_t){.g = 255, .b = 100});
+
+  esp_http_client_config_t config = {
+      .url = args,
+      //.cert_pem = (char *)server_cert_pem_start,
+      .event_handler = update_event_handler,
+  };
+  esp_err_t err = esp_https_ota(&config);
+
+  if (err == ESP_OK) {
+    display_circle_progress(23, (color_t){.g = 255});
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // TODO: wipe?
+    esp_restart();
+  } else {
+    display_circle_progress(23, (color_t){.r = 255});
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+}
+
+static esp_err_t update_event_handler(esp_http_client_event_t *evt) {
+  static int content_length = 0;
+  static int content_received = 0;
+
+  switch (evt->event_id) {
+  case HTTP_EVENT_ON_HEADER:
+    if (strcmp(evt->header_key, "Content-Length") == 0) {
+      content_length = atoi(evt->header_value);
+    }
+    break;
+  case HTTP_EVENT_ON_DATA:
+    content_received += evt->data_len;
+    if (content_length > 0) {
+      uint8_t progress = map(content_received, 0, content_length, 0, 23);
+      display_circle_progress(progress, (color_t){.r = 255, .g = 100});
+    }
+    break;
+  case HTTP_EVENT_DISCONNECTED:
+    content_length = 0;
+    content_received = 0;
+    break;
+  default:
+    break;
+  }
+  return ESP_OK;
 }
 
 void coap_get_handler(cJSON *request, cJSON *response) {
@@ -226,5 +304,22 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings.color.hue = cJSON_GetObjectItem(color, "hue")->valueint;
     settings.color.sat = cJSON_GetObjectItem(color, "sat")->valueint;
     settings_save_color();
+  }
+
+  cJSON *update = cJSON_GetObjectItem(request, "update");
+  if (update != NULL && !interrupt_task.method) {
+    interrupt_task.method = interrupt_task_update;
+    interrupt_task.args = strdup(update->valuestring);
+  }
+
+  cJSON *update_bak = cJSON_GetObjectItem(request, "update_bak");
+  if (update_bak != NULL) {
+    interrupt_task_update(update_bak->valuestring);
+  }
+
+  cJSON *locate = cJSON_GetObjectItem(request, "locate");
+  if (locate != NULL && !interrupt_task.method) {
+    interrupt_task.method = interrupt_task_locate;
+    interrupt_task.args = NULL;
   }
 }

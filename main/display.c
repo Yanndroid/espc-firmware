@@ -9,7 +9,9 @@
 // 0,1,2,3,4,5,6,7,8,9,A,b,C,d,E,F, ,°,-,_,P
 static const uint8_t display_digit_masks[] = {0x77, 0x11, 0x6b, 0x3b, 0x1d, 0x3e, 0x7e, 0x13, 0x7f, 0x3f, 0x5f, 0x7c, 0x66, 0x79, 0x6e, 0x4e, 0x00, 0x0f, 0x02, 0x08, 0x4f};
 
-const static color_t color_off = {0, 0, 0};
+static const uint8_t display_circle[] = {1, 0, 8, 9, 10, 11, 24, 25, 41, 42, 55, 56, 57, 58, 50, 49, 48, 47, 34, 33, 17, 16, 3, 2}; // TODO: compress
+
+static const color_t color_off = {0, 0, 0};
 
 typedef enum {
   SEGMENT_1 = 0,
@@ -87,9 +89,21 @@ void display_show_temperature_weather(weather_t *weather, color_t color) {
 
 void display_show_loading_next() {
   static uint8_t frame = 0;
-  display_loading(frame, (color_t){.r = 0, .g = 255, .b = 30}, (color_t){.r = 0, .g = 30, .b = 255});
+  display_loading(frame, (color_t){.g = 255}, (color_t){.b = 255});
   frame = (frame + 1) % 24;
   vTaskDelay(1000 / 12 / portTICK_PERIOD_MS);
+}
+
+void display_circle_progress(uint8_t progress, color_t color) {
+  uint8_t size = sizeof(display_circle);
+  if (progress >= size)
+    return;
+
+  ws2812b_clear();
+  for (int i = 0; i <= progress; i++) {
+    ws2812b_set_pixel(display_circle[i], color);
+  }
+  ws2812b_show();
 }
 
 static void display_show_temperature(weather_t *weather, color_t color) {
@@ -146,16 +160,15 @@ static void display_dots(bool time_dots, bool date_dot, color_t color) {
 }
 
 static void display_loading(uint8_t frame, color_t color_one, color_t color_two) {
-  uint8_t anim[] = {1, 0, 8, 9, 10, 11, 24, 25, 41, 42, 55, 56, 57, 58, 50, 49, 48, 47, 34, 33, 17, 16, 3, 2};
-  uint8_t size = sizeof(anim);
+  uint8_t size = sizeof(display_circle);
   if (frame >= size)
     return;
 
   ws2812b_clear();
-  ws2812b_set_pixel(anim[frame], color_one);
-  ws2812b_set_pixel(anim[(frame + 1) % size], color_one);
+  ws2812b_set_pixel(display_circle[frame], color_one);
+  ws2812b_set_pixel(display_circle[(frame + 1) % size], color_one);
 
-  ws2812b_set_pixel(anim[(frame + size / 2) % size], color_two);
-  ws2812b_set_pixel(anim[(frame + 1 + size / 2) % size], color_two);
+  ws2812b_set_pixel(display_circle[(frame + size / 2) % size], color_two);
+  ws2812b_set_pixel(display_circle[(frame + 1 + size / 2) % size], color_two);
   ws2812b_show();
 }

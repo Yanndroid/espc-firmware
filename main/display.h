@@ -22,3 +22,5 @@ void display_show_temperature_degree(weather_t *weather, color_t color);
 void display_show_temperature_weather(weather_t *weather, color_t color);
 
 void display_show_loading_next();
+
+void display_circle_progress(uint8_t progress, color_t color);
