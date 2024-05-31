@@ -1,59 +1,65 @@
 menu "ESP Clock Settings"
 
     config DEVICE_NAME
-        string "device name"
+        string "Device Name"
         default "ESP Clock"
         help
             The device name which is used in the app and as wifi station name. Max 31 chars.
 
+    config AP_PASSWORD
+        string "AP Password"
+        default "yanndroid"
+        help
+            Hotspot password for Clock setup.
+
     config WIFI_SSID
-        string "wifi ssid"
+        string "WiFi SSID"
         default ""
         help
             Wifi ssid.
 
     config WIFI_PASSWORD
-        string "wifi password"
+        string "WiFi Password"
         default ""
         help
             Wifi password.
 
     config WIFI_USERNAME
-        string "wifi enterprise username"
+        string "WiFi Enterprise Username"
         default ""
         help
             Wifi username for enterprise APs.
 
     config BRIGHTNESS_MIN
-        int "minimum brightness"
-        default 2
+        int "Minimum Brightness"
+        default 4
         range 0 255
         help
             The brightness at night. From 0 to 255.
 
     config BRIGHTNESS_MAX
-        int "maximum brightness"
+        int "Maximum Brightness"
         default 60
         range 0 255
         help
             The brightness at day. From 0 to 255.
 
     config BRIGHTNESS_MARGIN
-        int "brightness transition time"
+        int "Brightness Transition Time"
         default 7200
         range 0 14400
         help
             The brightness transition time in seconds before and after sunrise/sunset. Linear transition between min and max brightness.
 
     config COLOR_HUE
-        int "color hue"
+        int "Color Hue"
         default 60000
         range 0 65535
         help
             The hue for the color, or start point for the rainbow animation. From 0 to 65535.
 
     config COLOR_SAT
-        int "color saturation"
+        int "Color Saturation"
         default 255
         range 0 255
         help

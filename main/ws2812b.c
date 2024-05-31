@@ -146,5 +146,5 @@ void IRAM_ATTR ws2812b_show(void) {
   vPortETSIntrUnlock();
   vPortExitCritical();
 
-  vTaskDelay(10 / portTICK_PERIOD_MS); // TDOD: remove maybe
+  vTaskDelay(10 / portTICK_PERIOD_MS); // TODO: remove maybe
 }

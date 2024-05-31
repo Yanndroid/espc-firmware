@@ -8,6 +8,7 @@
 #include "esp_netif.h"
 #include "location.h"
 #include "lwip/apps/sntp.h"
+#include "sdkconfig.h"
 #include "settings.h"
 #include "weather.h"
 #include "wifi.h"
@@ -59,7 +60,7 @@ void app_main() {
     settings.wifi.username[0] = '\0';
     settings.wifi.password[0] = '\0';
 
-    wifi_ap(settings.device_name, "yanndroid"); // from config
+    wifi_ap(settings.device_name, CONFIG_AP_PASSWORD);
     display_show_app();
 
     while (strlen(settings.wifi.ssid) == 0) {
@@ -208,7 +209,7 @@ static void interrupt_task_update(void *args) {
   if (err == ESP_OK) {
     display_circle_progress(23, (color_t){.g = 255});
     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    // TODO: wipe?
+    settings_wipe(); // TODO: wipe?
     esp_restart();
   } else {
     display_circle_progress(23, (color_t){.r = 255});
