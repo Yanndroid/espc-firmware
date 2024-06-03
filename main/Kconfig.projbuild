@@ -1,69 +1,86 @@
 menu "ESP Clock Settings"
 
-    config DEVICE_NAME
-        string "Device Name"
-        default "ESP Clock"
-        help
-            The device name which is used in the app and as wifi station name. Max 31 chars.
+    menu "Config"
 
-    config AP_PASSWORD
-        string "AP Password"
-        default "yanndroid"
-        help
-            Hotspot password for Clock setup.
+        config AP_PASSWORD
+            string "AP Password"
+            default "yanndroid"
+            help
+                Hotspot password for Clock setup.
 
-    config WIFI_SSID
-        string "WiFi SSID"
-        default ""
-        help
-            Wifi ssid.
+        config OTA_PUBLIC_KEY
+            string "OTA Public Key"
+            default ""
+            help
+                The ED25519 public key for signed ota updates.
 
-    config WIFI_PASSWORD
-        string "WiFi Password"
-        default ""
-        help
-            Wifi password.
+    endmenu
 
-    config WIFI_USERNAME
-        string "WiFi Enterprise Username"
-        default ""
-        help
-            Wifi username for enterprise APs.
+    menu "Network"
 
-    config BRIGHTNESS_MIN
-        int "Minimum Brightness"
-        default 4
-        range 0 255
-        help
-            The brightness at night. From 0 to 255.
+        config DEVICE_NAME
+            string "Device Name"
+            default "ESP Clock"
+            help
+                The device name which is used in the app and as wifi station name. Max 31 chars.
 
-    config BRIGHTNESS_MAX
-        int "Maximum Brightness"
-        default 60
-        range 0 255
-        help
-            The brightness at day. From 0 to 255.
+        config WIFI_SSID
+            string "WiFi SSID"
+            default ""
+            help
+                Wifi ssid.
 
-    config BRIGHTNESS_MARGIN
-        int "Brightness Transition Time"
-        default 7200
-        range 0 14400
-        help
-            The brightness transition time in seconds before and after sunrise/sunset. Linear transition between min and max brightness.
+        config WIFI_PASSWORD
+            string "WiFi Password"
+            default ""
+            help
+                Wifi password.
 
-    config COLOR_HUE
-        int "Color Hue"
-        default 60000
-        range 0 65535
-        help
-            The hue for the color, or start point for the rainbow animation. From 0 to 65535.
+        config WIFI_USERNAME
+            string "WiFi Enterprise Username"
+            default ""
+            help
+                Wifi username for enterprise APs.
 
-    config COLOR_SAT
-        int "Color Saturation"
-        default 255
-        range 0 255
-        help
-            The hue for the color, or start point for the rainbow animation. From 0 to 255.
-    
+    endmenu
+
+    menu "Display"
+
+        config BRIGHTNESS_MIN
+            int "Minimum Brightness"
+            default 4
+            range 0 255
+            help
+                The brightness at night. From 0 to 255.
+
+        config BRIGHTNESS_MAX
+            int "Maximum Brightness"
+            default 60
+            range 0 255
+            help
+                The brightness at day. From 0 to 255.
+
+        config BRIGHTNESS_MARGIN
+            int "Brightness Transition Time"
+            default 7200
+            range 0 14400
+            help
+                The brightness transition time in seconds before and after sunrise/sunset. Linear transition between min and max brightness.
+
+        config COLOR_HUE
+            int "Color Hue"
+            default 60000
+            range 0 65535
+            help
+                The hue for the color, or start point for the rainbow animation. From 0 to 65535.
+
+        config COLOR_SAT
+            int "Color Saturation"
+            default 255
+            range 0 255
+            help
+                The hue for the color, or start point for the rainbow animation. From 0 to 255.
+
+    endmenu
 
 endmenu

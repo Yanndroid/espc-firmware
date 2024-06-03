@@ -4,12 +4,13 @@
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
-#include "esp_https_ota.h"
 #include "esp_netif.h"
 #include "location.h"
 #include "lwip/apps/sntp.h"
+#include "pending_task.h"
 #include "sdkconfig.h"
 #include "settings.h"
+#include "update.h"
 #include "weather.h"
 #include "wifi.h"
 #include "ws2812b.h"
@@ -20,18 +21,11 @@
 static void main_online_mode(void);
 static int map(int x, int in_min, int in_max, int out_min, int out_max);
 static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather);
-static void interrupt_task_locate(void *args);
-static void interrupt_task_update(void *args);
+static void pending_task_locate(const void *args);
+static void pending_task_update(const void *args);
+static void pending_task_restart(const void *args);
+static void pending_task_wipe_nvs(const void *args);
 static esp_err_t update_event_handler(esp_http_client_event_t *evt);
-
-typedef void (*interrupt_method)(void *args);
-
-typedef struct {
-  interrupt_method method;
-  void *args;
-} interrupt_task_t;
-
-interrupt_task_t interrupt_task = {NULL, NULL};
 
 void app_main() {
   // settings
@@ -114,12 +108,8 @@ static void main_online_mode(void) {
   color_t color;
 
   while (1) {
-    // process interrupt task
-    if (interrupt_task.method) {
-      interrupt_task.method(interrupt_task.args);
-      free(interrupt_task.args);
-      interrupt_task.method = NULL;
-    }
+    // process pending task
+    pending_task_run();
 
     // get time
     time(&now);
@@ -188,28 +178,24 @@ static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather) {
   }
 }
 
-static void interrupt_task_locate(void *args) {
+static void pending_task_locate(const void *args) {
   display_set_brightness(settings.brightness.max, false);
   for (int i = 0; i < 24; i++) {
     display_show_loading_next();
   }
 }
 
-static void interrupt_task_update(void *args) {
+static void pending_task_update(const void *args) {
   display_set_brightness(settings.brightness.max, false);
   display_circle_progress(23, (color_t){.g = 255, .b = 100});
 
-  esp_http_client_config_t config = {
-      .url = args,
-      //.cert_pem = (char *)server_cert_pem_start,
-      .event_handler = update_event_handler,
-  };
-  esp_err_t err = esp_https_ota(&config);
+  esp_err_t err = update_ota((update_data_t *)args);
+  free(((update_data_t *)args)->url);
+  free(((update_data_t *)args)->signature);
 
   if (err == ESP_OK) {
     display_circle_progress(23, (color_t){.g = 255});
     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    settings_wipe(); // TODO: wipe?
     esp_restart();
   } else {
     display_circle_progress(23, (color_t){.r = 255});
@@ -217,14 +203,14 @@ static void interrupt_task_update(void *args) {
   }
 }
 
-static void interrupt_task_restart(void *args) {
+static void pending_task_restart(const void *args) {
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   esp_restart();
 }
 
-static void interrupt_task_wipe_nvs(void *args) {
+static void pending_task_wipe_nvs(const void *args) {
   settings_wipe();
-  interrupt_task_restart(args);
+  pending_task_restart(args);
 }
 
 static esp_err_t update_event_handler(esp_http_client_event_t *evt) {
@@ -317,32 +303,27 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings_save_color();
   }
 
-  /* cJSON *update_bak = cJSON_GetObjectItem(request, "update_bak");
-  if (update_bak != NULL) {
-    interrupt_task_update(update_bak->valuestring);
-  } */
-
   cJSON *update = cJSON_GetObjectItem(request, "update");
-  if (update != NULL && !interrupt_task.method) {
-    interrupt_task.method = interrupt_task_update;
-    interrupt_task.args = strdup(update->valuestring);
+  if (update != NULL && !pending_task_get_method()) {
+    update_data_t *update_data = malloc(sizeof(update_data_t));
+    update_data->url = strdup(cJSON_GetObjectItem(update, "url")->valuestring);
+    update_data->signature = strdup(cJSON_GetObjectItem(update, "signature")->valuestring);
+    update_data->event_handle = update_event_handler;
+    pending_task_set(pending_task_update, update_data);
   }
 
   cJSON *reset = cJSON_GetObjectItem(request, "reset");
-  if (reset != NULL && !interrupt_task.method) {
-    interrupt_task.method = interrupt_task_wipe_nvs;
-    interrupt_task.args = NULL;
+  if (reset != NULL && !pending_task_get_method()) {
+    pending_task_set(pending_task_wipe_nvs, NULL);
   }
 
   cJSON *restart = cJSON_GetObjectItem(request, "restart");
-  if (restart != NULL && !interrupt_task.method) {
-    interrupt_task.method = interrupt_task_restart;
-    interrupt_task.args = NULL;
+  if (restart != NULL && !pending_task_get_method()) {
+    pending_task_set(pending_task_restart, NULL);
   }
 
   cJSON *locate = cJSON_GetObjectItem(request, "locate");
-  if (locate != NULL && !interrupt_task.method) {
-    interrupt_task.method = interrupt_task_locate;
-    interrupt_task.args = NULL;
+  if (locate != NULL && !pending_task_get_method()) {
+    pending_task_set(pending_task_locate, NULL);
   }
 }
