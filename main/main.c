@@ -303,7 +303,7 @@ void coap_put_handler(cJSON *request, cJSON *response) {
   }
 
   cJSON *update = cJSON_GetObjectItem(request, "update");
-  if (update != NULL && !pending_task_get_method()) {
+  if (update != NULL) {
     update_data_t *update_data = malloc(sizeof(update_data_t));
     update_data->url = strdup(cJSON_GetObjectItem(update, "url")->valuestring);
     update_data->signature = strdup(cJSON_GetObjectItem(update, "signature")->valuestring);
@@ -312,12 +312,12 @@ void coap_put_handler(cJSON *request, cJSON *response) {
   }
 
   cJSON *restart = cJSON_GetObjectItem(request, "restart");
-  if (restart != NULL && !pending_task_get_method()) {
+  if (restart != NULL) {
     pending_task_set(pending_task_restart, NULL);
   }
 
   cJSON *locate = cJSON_GetObjectItem(request, "locate");
-  if (locate != NULL && !pending_task_get_method()) {
+  if (locate != NULL) {
     pending_task_set(pending_task_locate, NULL);
   }
 }

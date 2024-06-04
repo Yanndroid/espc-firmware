@@ -4,12 +4,10 @@
 static pending_task_t pending_task = {NULL, NULL};
 
 void pending_task_set(pending_task_method method, void *args) {
-  pending_task.method = method;
-  pending_task.args = args;
-}
-
-pending_task_method pending_task_get_method(void) {
-  return pending_task.method;
+  if (!pending_task.method) {
+    pending_task.method = method;
+    pending_task.args = args;
+  }
 }
 
 void pending_task_run(void) {

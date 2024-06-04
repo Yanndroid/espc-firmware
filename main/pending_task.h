@@ -9,6 +9,4 @@ typedef struct {
 
 void pending_task_set(pending_task_method method, void *args);
 
-pending_task_method pending_task_get_method(void);
-
 void pending_task_run(void);
