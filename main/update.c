@@ -28,6 +28,8 @@ esp_err_t update_ota(update_data_t *data) {
   esp_http_client_config_t config = {
       .url = data->url,
       .event_handler = data->event_handle,
+      .cert_pem = NULL,
+      .skip_cert_common_name_check = true,
   };
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -35,12 +37,25 @@ esp_err_t update_ota(update_data_t *data) {
     return ESP_FAIL;
   }
 
-  esp_err_t err = esp_http_client_open(client, 0);
-  if (err != ESP_OK) {
-    esp_http_client_cleanup(client);
-    return err;
-  }
-  esp_http_client_fetch_headers(client);
+  esp_err_t err = ESP_OK;
+  do {
+    err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+      esp_http_client_cleanup(client);
+      return err;
+    }
+
+    esp_http_client_fetch_headers(client);
+
+    switch (esp_http_client_get_status_code(client)) {
+    case HttpStatus_MovedPermanently:
+    case HttpStatus_Found:
+    case HttpStatus_TemporaryRedirect:
+      esp_http_client_set_redirection(client);
+      err = ESP_ERR_INVALID_STATE;
+    }
+
+  } while (err == ESP_ERR_INVALID_STATE);
 
   esp_ota_handle_t update_handle = 0;
   const esp_partition_t *update_partition = NULL;

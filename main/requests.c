@@ -34,6 +34,8 @@ esp_err_t requests_get_json(const char *url, requests_json_parser parser) {
   esp_http_client_config_t config = {
       .url = url,
       .event_handler = requests_http_event_handler,
+      .cert_pem = NULL,
+      .skip_cert_common_name_check = true,
   };
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
