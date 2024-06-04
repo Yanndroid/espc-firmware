@@ -5,6 +5,7 @@
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_netif.h"
+#include "esp_ota_ops.h"
 #include "location.h"
 #include "lwip/apps/sntp.h"
 #include "pending_task.h"
@@ -245,7 +246,7 @@ void coap_get_handler(cJSON *request, cJSON *response) {
       cJSON *device = cJSON_CreateObject();
       cJSON_AddItemToObject(response, "device", device);
       cJSON_AddStringToObject(device, "name", settings.device_name);
-      cJSON_AddNumberToObject(device, "heap", esp_get_free_heap_size());
+      cJSON_AddStringToObject(device, "version", esp_ota_get_app_description()->version);
 
       uint8_t mac[6];
       esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -253,6 +254,7 @@ void coap_get_handler(cJSON *request, cJSON *response) {
       snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
       cJSON_AddStringToObject(device, "mac", mac_str);
 
+      cJSON_AddNumberToObject(device, "heap", esp_get_free_heap_size());
     } else if (strcmp(item->valuestring, "wifi") == 0) {
       cJSON *wifi = cJSON_CreateObject();
       cJSON_AddItemToObject(response, "wifi", wifi);
