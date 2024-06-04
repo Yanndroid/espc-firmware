@@ -24,7 +24,6 @@ static uint8_t calc_brightness(bool night, time_t *now, weather_t *weather);
 static void pending_task_locate(const void *args);
 static void pending_task_update(const void *args);
 static void pending_task_restart(const void *args);
-static void pending_task_wipe_nvs(const void *args);
 static esp_err_t update_event_handler(esp_http_client_event_t *evt);
 
 void app_main() {
@@ -208,11 +207,6 @@ static void pending_task_restart(const void *args) {
   esp_restart();
 }
 
-static void pending_task_wipe_nvs(const void *args) {
-  settings_wipe();
-  pending_task_restart(args);
-}
-
 static esp_err_t update_event_handler(esp_http_client_event_t *evt) {
   static int content_length = 0;
   static int content_received = 0;
@@ -303,6 +297,11 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     settings_save_color();
   }
 
+  cJSON *reset = cJSON_GetObjectItem(request, "reset");
+  if (reset != NULL) {
+    settings_wipe();
+  }
+
   cJSON *update = cJSON_GetObjectItem(request, "update");
   if (update != NULL && !pending_task_get_method()) {
     update_data_t *update_data = malloc(sizeof(update_data_t));
@@ -310,11 +309,6 @@ void coap_put_handler(cJSON *request, cJSON *response) {
     update_data->signature = strdup(cJSON_GetObjectItem(update, "signature")->valuestring);
     update_data->event_handle = update_event_handler;
     pending_task_set(pending_task_update, update_data);
-  }
-
-  cJSON *reset = cJSON_GetObjectItem(request, "reset");
-  if (reset != NULL && !pending_task_get_method()) {
-    pending_task_set(pending_task_wipe_nvs, NULL);
   }
 
   cJSON *restart = cJSON_GetObjectItem(request, "restart");
