@@ -89,21 +89,18 @@ static void main_online_mode(void) {
   weather_t *weather = weather_get();
 
   // wait for time sync
-  time_t now = 0;
-  struct tm timeinfo = {.tm_year = 0};
-
-  while (timeinfo.tm_year <= 70) {
+  while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET) {
     display_show_loading_next();
-
-    time(&now);
-    localtime_r(&now, &timeinfo);
   }
 
   // set timezone
-  setenv("TZ", "UTC-2", 1);
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
   tzset();
 
   // main loop
+  time_t now = 0;
+  struct tm timeinfo;
+  
   uint16_t hue = settings.color.hue;
   color_t color;
 
