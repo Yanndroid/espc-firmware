@@ -1,0 +1,61 @@
+name: Build and release ESPC Firmware
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Toolchain
+        run: |
+          mkdir $HOME/esp-toolchain
+          cd $HOME/esp-toolchain
+          wget -O ./xtensa.tar.gz https://dl.espressif.com/dl/xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
+          tar -xzf xtensa.tar.gz
+          rm -f ./xtensa.tar.gz
+          sudo apt install gperf
+
+      - name: Download SDK
+        run: |
+          mkdir $HOME/esp-sdk
+          cd $HOME/esp-sdk
+          wget -O ./rtos_sdk.zip https://github.com/espressif/ESP8266_RTOS_SDK/releases/download/v3.4/ESP8266_RTOS_SDK-v3.4.zip
+          unzip ./rtos_sdk.zip
+          rm -f ./rtos_sdk.zip
+          pip install --user -r ./ESP8266_RTOS_SDK/requirements.txt
+
+      - name: Build
+        run: |
+          export PATH="$PATH:$HOME/esp-toolchain/xtensa-lx106-elf/bin"
+          export IDF_PATH="$HOME/esp-sdk/ESP8266_RTOS_SDK"
+          printf "CONFIG_OTA_PUBLIC_KEY=\"${{ secrets.PUBLIC_KEY }}\"" > ./sdkconfig
+          make defconfig app
+
+      - name: Download Dev Tools
+        run: |
+          cd $HOME
+          git clone https://github.com/Yanndroid/espc-dev-tools.git
+          cd ./espc-dev-tools/ota-crypto
+          sudo apt install libsodium-dev
+          make all
+
+      - name: Get Signature
+        id: get-signature
+        run: $HOME/espc-dev-tools/ota-crypto/get-signature ./build/esp-clock-firmware.bin ${{ secrets.PRIVATE_KEY }} | awk '{print "signature=" $2}' >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            **Signature**:
+            ```
+            ${{ steps.get-signature.outputs.signature }}
+            ```
+          files: ./build/esp-clock-firmware.bin
