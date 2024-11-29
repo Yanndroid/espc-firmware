@@ -111,7 +111,7 @@ static void display_show_temperature(weather_t *weather, color_t color) {
   if (temp < 0) { // XOR minus and tens digit
     uint8_t abs_temp = abs(temp);
     display_segment_digit(SEGMENT_3, abs_temp % 10, color);
-    uint8_t mask = display_digit_masks[19] ^ display_digit_masks[abs_temp / 10];
+    uint8_t mask = display_digit_masks[19] ^ display_digit_masks[display_blank_0(abs_temp / 10)];
     display_segment_mask(SEGMENT_4, mask, color);
   } else {
     display_segment_digit(SEGMENT_3, temp % 10, color);
